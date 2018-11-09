@@ -1,0 +1,72 @@
+---
+- hosts: wordpress_nodes
+  become: yes
+  vars:
+    blog_path: /var/www/wordpress
+    database_name: adsk_wordpress
+    user_name: adsk_wordpress
+    password: 12345
+  tasks:
+   - name: "Lets install httpd server"
+     yum:
+       name: httpd
+       state: latest
+   - name: "Start server"
+     service:
+       name: httpd
+       state: started
+   - name: "Lets install php module"
+     yum:
+       name: "{{item}}"
+       state: latest
+     with_items:
+       - php
+       - php-mysql
+   - name: "Restart server httpd sever"
+     service:
+       name: httpd
+       state: restarted
+   - name: "Lets install mariadb server"
+     yum:
+       name: "{{item}}"
+     with_items:
+       - mariadb
+       - mariadb-server
+   - service:
+       name: mariadb
+       state: started
+   - name: "Download wordpress"
+     get_url:
+       url: https://pl.wordpress.org/wordpress-4.9.8-pl_PL.tar.gz
+       dest: ~/wordpress.tar.gz
+   - name: "Unpack Wordpress archive"
+     unarchive:
+       src: ~/wordpress.tar.gz
+       dest: /var/www
+       remote_src: yes
+   - name: "Install additional mysql python dependencies"
+     yum:
+       name: MySQL-python
+       state: present
+   - name: "Set up wordpress database"
+     mysql_db:
+       name: "{{database_name}}"
+       state: present
+   - name: "Create database user"
+     mysql_user:
+       name: "{{user_name}}"
+       password: "{{ password }}"
+       priv: '*.*:ALL'
+       state: present
+   - name: "Configure apache vhost"
+     template:
+       src: templates/vhosts.conf
+       dest: /etc/httpd/conf.d/blog.conf
+   - name: "Restart server httpd sever"
+     service:
+       name: httpd
+       state: restarted 
+   - name: "Copy wordpress config to destination"
+     template:
+       src: templates/wp-config.php.j2
+       dest: "{{blog_path}}/wp-config.php"
